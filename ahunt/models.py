@@ -114,17 +114,17 @@ def build_model_dense(shape,n_class,n_latent = 64):
     )
     return clf,drt
 
-def build_model_2dconv(shape,n_class,n_latent = 64,l1=1e-10):
+def build_model_2dconv(shape, n_class, n_latent=64, n_layers=1, kernel_size=3, pooling_size=2, l1=1e-10):
 
     
     inp = keras.Input(shape=shape, name="input")
 
-    x = layers.Conv2D(16, (2, 2), activation='relu', padding='same', activity_regularizer=regularizers.l1(l1))(inp)
-    x = layers.MaxPooling2D((2, 2), padding='same')(x)
-    x = layers.Conv2D(8, (2, 2), activation='relu', padding='same', activity_regularizer=regularizers.l1(l1))(x)
-    #     x = layers.MaxPooling2D((2, 2), padding='same')(x)
-    #     x = layers.Conv2D(8, (3, 3), activation='relu', padding='same', activity_regularizer=regularizers.l1(l1))(x)
-    x = layers.MaxPooling2D((2, 2), padding='same')(x)
+    x = layers.Conv2D(16, (kernel_size, kernel_size), activation='relu', padding='same', activity_regularizer=regularizers.l1(l1))(inp)
+    x = layers.MaxPooling2D((pooling_size, pooling_size), padding='same')(x)
+    
+    for _ in range(n_layers):
+        x = layers.Conv2D(8, (kernel_size, kernel_size), activation='relu', padding='same', activity_regularizer=regularizers.l1(l1))(x)
+        x = layers.MaxPooling2D((pooling_size, pooling_size), padding='same')(x)
 
     sh = x.shape[1:]
 #     print(sh)

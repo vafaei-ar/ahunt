@@ -147,7 +147,7 @@ class AHunt:
 #                 print(scr_ano[q],  n_questions)
                 if scr_ano[q] <  n_questions: break
             
-            print('Number of questions is {}.'.format(len(inds_all)))
+#             print('Number of questions is {}.'.format(len(inds_all)))
             return inds_all,inds_interest
 
         else:

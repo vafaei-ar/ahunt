@@ -64,7 +64,7 @@ def compare(path,
         if n_questions==1 and type(n_questions) is float:
             assert 0,'Warning, when you choose 1, it should be integer.'
         n_questions = n_night*[n_questions]
-    print(BOLD_BEGIN+'Loaded data configuration:'+BOLD_END)
+#     print(BOLD_BEGIN+'Loaded data configuration:'+BOLD_END)
     x,y,int_mapper,lbl_mapper = load_npz(path,verbose=0)
     x = x/x.max()
     
@@ -80,14 +80,14 @@ def compare(path,
         x += np.random.normal(0,noise,x.shape)
     n_class,class_labels, nums = describe_labels(y,verbose=0)
 #     print(n_class)
-    print(BOLD_BEGIN+' ******** previous dataset ******** '+BOLD_END)
+#     print(BOLD_BEGIN+' ******** previous dataset ******** '+BOLD_END)
 
     x, y, x_pre, y_pre = data_prepare(x,y,pre_data_config)
     describe_labels(y_pre,verbose=0)
     # x_obs = x_obs_orig.reshape(x_obs_orig.shape[0],-1)
     # y_obs1 = y_obs_orig+0
 
-    print(BOLD_BEGIN+' ******** Observation begins ******** '+BOLD_END)
+#     print(BOLD_BEGIN+' ******** Observation begins ******** '+BOLD_END)
     obs = Observetory(obs_plan,x,y)
 
     rws1,rws2,rws3,rws4 = [],[],[],[]

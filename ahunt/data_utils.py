@@ -163,6 +163,11 @@ def analyze(xx,cl=2.5):
     u = np.percentile(xx,100-cl,axis=0)
     return m,l,u
 
+def analyze_plot(ax,metric,clr,label,alpha):
+    m,l,u = analyze(metric)
+    ax.plot(m,clr,label=label)
+    ax.fill_between(np.arange(m.shape[0]),l,u,color=clr,alpha=alpha)
+
 def rws_score2(outliers,v,n_o=None):
     outliers = np.array(outliers)
     if n_o is None:
@@ -186,6 +191,50 @@ def check_int(x):
 
 def check_float(x):
     return type(x) is float or 'float' in str(type(x))
+
+def get_tguess(n_questions,scr_ano,ano_inds):
+    if check_int(n_questions):
+        qinds = np.argsort(scr_ano)[-n_questions:]
+    elif check_float(n_questions) and n_questions<1:
+#             np.where(x<5)[0]
+        qinds = np.where(scr_ano > n_questions)[0]
+#             qinds = np.argsort(scr_ano)#[-:]
+    else:
+        print(type(n_questions))
+        print(n_questions)
+        assert 0,'Unknown number of questions.'
+
+    inds = np.intersect1d(qinds,ano_inds)
+    true_guess = len(inds)
+    return inds,true_guess
+
+class PredictionHistoryChecker:
+    def __init__(self):
+        self.seen = []
+
+    def get_tguess(self,n_questions,scr_ano,ano_inds,x_obs):
+        cands = np.argsort(scr_ano)[::-1]
+        ncand = 0
+        true_guess = 0
+        for ic in cands:
+            mn = 10000
+            for asked in self.seen:
+                dist = np.sum( (x_obs[ic]-asked)**2 )
+                mn = min(mn,dist)
+            if mn>1e-3:
+                if ic in ano_inds:
+                    true_guess = true_guess+1
+                self.seen.append(x_obs[ic])
+                ncand = ncand+1
+
+            if check_int(n_questions):
+                if ncand==n_questions: break
+            elif check_float(n_questions) and n_questions<1:
+                if scr_ano[ic] <  n_questions: break
+            else:
+                print(n_questions)
+                assert 0,'Unknown number of questions.'
+        return true_guess
 
 # def rws_score(outliers,v,n_o=None):
 #     outliers = np.array(outliers)
