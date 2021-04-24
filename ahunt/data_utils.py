@@ -68,6 +68,12 @@ def describe_labels(y0,int_mapper=None,verbose=0):
 #     print('labels/numbers are:\n',*['{:5s}/{:6d}\n'.format(str(i),j) for i,j in zip(class_labels,nums)])
 #     return n_calss
 
+def shuffle_data(x,y):
+    ndata = x.shape[0]
+    inds = np.arange(ndata)
+    np.random.shuffle(inds)
+    return x[inds],y[inds]
+    
 
 def data_prepare(x,y,data_config,warning=True):
     if y.ndim>1:
@@ -157,16 +163,19 @@ def plot_population(plan_tot,ax=None):
         
     return population_by_group
 
-def analyze(xx,cl=2.5):
+def analyze(xx,cl=95):
+    cl = 0.5*(100-cl)
     m = np.mean(xx,axis=0)
     l = np.percentile(xx,cl,axis=0)
     u = np.percentile(xx,100-cl,axis=0)
     return m,l,u
 
-def analyze_plot(ax,metric,clr,label,alpha):
-    m,l,u = analyze(metric)
-    ax.plot(m,clr,label=label)
-    ax.fill_between(np.arange(m.shape[0]),l,u,color=clr,alpha=alpha)
+def analyze_plot(ax,metric,x=None,cl=95,clr='b',label='',alpha=0.3):
+    m,l,u = analyze(metric,cl=cl)
+    if x is None:
+        x = np.arange(m.shape[0])
+    ax.plot(x,m,clr,label=label)
+    ax.fill_between(x,l,u,color=clr,alpha=alpha)
 
 def rws_score2(outliers,v,n_o=None):
     outliers = np.array(outliers)

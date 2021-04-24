@@ -10,7 +10,7 @@ from .data_utils import check_int,check_float
 
 
 class AHunt:
-    def __init__(self,x,y=None,interest=None,aug=None):
+    def __init__(self,x,y=None,interest=None,aug=None,n_reserve=1):
         self.x = x
         self.shape = self.x.shape
         
@@ -47,7 +47,8 @@ class AHunt:
             self.lm = LabelManager(y)
             self.y = y
 #         self.clf = clf
-        self.n_class = self.lm.n_class+1
+        self.n_reserve = n_reserve
+        self.n_class = self.lm.n_class+self.n_reserve
 #         clf.layers[-1].output_shape[-1]
 #         self.drt = drt
 
@@ -59,6 +60,8 @@ class AHunt:
             self.interest = self.lm.l2y[interest]
         self.aug = aug
         self.asked_q = []
+        
+        self.maxlimq = 100
 
     def fit(self,
             x=None,
@@ -67,7 +70,8 @@ class AHunt:
             epochs=10,
             validation_split=0.1,
             verbose=0,
-            reshape=None
+            reshape=None,
+            ivc=5 # intra-variability coefficient
            ):
         if x is None or y is None:
             x = self.x
@@ -76,20 +80,48 @@ class AHunt:
 #         print(x.shape,y.shape)
 
         if self.lm.update(y):
-            self.n_class = self.lm.n_class+1
+            self.n_class = self.lm.n_class+self.n_reserve
             self.clf = add_class(self.clf,self.drt,n_class = self.n_class,summary=0)
 
         yy = self.lm.to_y(y,onehot=1)
         xx,yy = balance_aug(x,yy,self.aug,reshape=reshape)
 #         yy = to_categorical(yy, num_classes=self.n_class)
-        yy = np.concatenate([yy,np.zeros((yy.shape[0],1))],axis=1)
-    
-        history = self.clf.fit(xx, yy,
-                               batch_size=batch_size,
-                               epochs=epochs,
-                               validation_split=validation_split,
-                               verbose=verbose)
-        return history
+        yy = np.concatenate([yy,np.zeros((yy.shape[0],self.n_reserve))],axis=1)
+  
+        if ivc:
+            history = self.clf.fit(self.aug.flow(xx, yy, batch_size=batch_size),
+                                   steps_per_epoch=len(xx) // batch_size,
+                                   epochs=epochs,
+                                   verbose=verbose)
+
+#             history = self.clf.fit(xx, yy,
+#                                    batch_size=batch_size,
+#                                    epochs=epochs,
+#                                    validation_split=validation_split,
+#                                    verbose=verbose)
+            return history.history
+        else:
+            dc = DataContainer(xx, yy)
+            xc, yc = dc.process(clf)
+            for i in range(epochs):
+                history = self.clf.fit(self.aug.flow(xx, yy, batch_size=batch_size),
+                                       steps_per_epoch=len(xx) // batch_size,
+                                       epochs=1,
+                                       verbose=verbose)
+#                 history = self.clf.fit(xc, yc,
+#                                        batch_size=batch_size,
+#                                        epochs=1,
+#                                        validation_split=validation_split,
+#                                        verbose=verbose
+
+                xc, yc = dc.process(self.clf,c=ivc)
+                
+            if 'val_accuracy' in history.history.keys():
+                hist = {'accuracy':[history.history['accuracy'] for history in histories],
+                        'val_accuracy':[history.history['val_accuracy'] for history in histories]}
+            else:
+                hist = {'accuracy':[history.history['accuracy'] for history in histories]}
+            return hist
 
     def ask_human(self,x,y,n_questions,minacc=0.0):
 #         if self.lm.update(y):
@@ -145,7 +177,7 @@ class AHunt:
                     if q in ano_inds:
                         inds_interest.append(q)
 #                 print(scr_ano[q],  n_questions)
-                if scr_ano[q] <  n_questions: break
+                if scr_ano[q] <  n_questions or self.maxlimq<len(inds_all) : break
             
 #             print('Number of questions is {}.'.format(len(inds_all)))
             return inds_all,inds_interest
@@ -185,11 +217,13 @@ class AHunt:
             self.y = np.concatenate([y[inds_all],self.y],axis=0)
         self.n_data = self.x.shape[0]
         
+        self.inds_all,self.inds_interest = inds_all,inds_interest
         return true_guess
 
-    def predict(self,x):
+    def predict(self,x,interest=None):
+        if interest is None: interest = self.interest
         z_clf = self.clf.predict(x)
-        return z_clf[:,self.interest]
+        return z_clf[:,interest]
     
     def class_predict(self,x):
         return self.clf.predict(x)
@@ -252,6 +286,44 @@ class LabelManager():
         return True
 
 
+class DataContainer:
+    def __init__(self,x,y):
+        self.x = x
+        self.y = y
+        self.ndata = x.shape[0]
+        self.weight = []
+        
+    def process(self,model,c=1):
+        y_pred = model.predict(self.x)
+        delta = np.sum((self.y-y_pred)**2,axis=1)
+        weight = c*(delta+1)
+        weight = weight/np.min(weight)
+#         weight = weight-np.min(weight)+1
+        weight = weight.astype(int)
+        self.weight.append(weight)
+        x_w,y_w = repeat_weight_op(self.x,self.y,weight)
+        return x_w,y_w    
+
+
+def repeat_weight_op(x,y,weight):
+    ndata = x.shape[0]
+    wlx = []
+    wly = []
+    oped = False
+    for i in np.argwhere(weight>1)[:,0]:
+        w = int(weight[i])-1
+        wlx.append(w*[x[i]])
+        wly.append(w*[y[i]])
+        oped = True
+        
+    if oped:
+        wlx = np.concatenate(wlx,axis=0)
+        wly = np.concatenate(wly,axis=0)
+        x_w = np.concatenate([x,wlx],axis=0)
+        y_w = np.concatenate([y,wly],axis=0)
+        return x_w,y_w
+    else:
+        return x,y
 
 # class AHunt:
 #     def __init__(self,x,y,clf,drt,interest,aug=None):
