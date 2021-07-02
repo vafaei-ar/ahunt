@@ -12,7 +12,53 @@ def augment(aug,x):
         out.append(aug.random_transform(i))
     return np.array(out)
 
-def balance_aug(x0,y0,aug=None,mixup=False,reshape=None):
+# def balance_aug(x0,y0,aug=None,mixup=False,reshape=None):
+# #     assert y0.ndim>1,'Agumentor ndim problem!'
+    
+#     if not reshape is None:
+#         shape0 = x0.shape
+#         x = x0.reshape(reshape)
+#     else:
+#         x = x0+0
+#     if y0.ndim==2:
+#         y = np.argmax(y0,axis=1)
+#         to_cat = True
+#     elif y0.ndim==1:
+#         y = y0+0
+#         to_cat = False
+#     else:
+#         assert 0,'Agumentor y ndim problem!'
+        
+#     class_labels, nums = np.unique(y,return_counts=True)
+#     nmax = max(nums)
+#     for i,(lbl,n0) in enumerate(zip(class_labels,nums)):
+#         if nmax==n0:
+#             continue
+#         delta = nmax-n0
+#         x_sub = x[y==lbl]
+#         inds = np.arange(n0)
+#         nrep = (nmax//len(inds))+1
+#         inds = np.repeat(inds, nrep)
+#         np.random.shuffle(inds)
+#         inds = inds[:delta]
+#         x_sub = x_sub[inds]
+#         if not aug is None:
+#             x_sub = augment(aug,x_sub)
+            
+#         if mixup:
+#             print('MIXUP is not supperted. IGNORED!')
+#             pass
+            
+#         x = np.concatenate([x,x_sub],axis=0)
+#         y = np.concatenate([y,delta*[lbl]],axis=0)
+        
+#     if not reshape is None:
+#         x = x.reshape([-1]+list(shape0)[1:])
+#     if to_cat:
+#         y = to_categorical(y)
+#     return x,y
+
+def balance_aug(x0,y0,aug=None,mixup=False,reshape=None,tocater=None):
 #     assert y0.ndim>1,'Agumentor ndim problem!'
     
     if not reshape is None:
@@ -20,7 +66,11 @@ def balance_aug(x0,y0,aug=None,mixup=False,reshape=None):
         x = x0.reshape(reshape)
     else:
         x = x0+0
-    if y0.ndim==2:
+        
+    if not tocater is None:
+        y = y0+0
+        to_cat = True
+    elif y0.ndim==2:
         y = np.argmax(y0,axis=1)
         to_cat = True
     elif y0.ndim==1:
@@ -55,7 +105,10 @@ def balance_aug(x0,y0,aug=None,mixup=False,reshape=None):
     if not reshape is None:
         x = x.reshape([-1]+list(shape0)[1:])
     if to_cat:
-        y = to_categorical(y)
+        if tocater is None:
+            y = to_categorical(y)
+        else:
+            y = tocater(y)
     return x,y
 
 class MixupGenerator():
