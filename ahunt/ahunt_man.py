@@ -10,7 +10,7 @@ from .data_utils import check_int,check_float
 
 
 class AHunt:
-    def __init__(self,x,y=None,interest=None,aug=None,n_reserve=1):
+    def __init__(self,x,y=None,interest=None,aug=None,reserved_classes=['r1']):
         self.x = x
         self.shape = self.x.shape
         
@@ -44,25 +44,43 @@ class AHunt:
         else:
             self.rmove0 = False
 #             n_class,class_labels, nums = describe_labels(y,int_mapper=None,verbose=1)
-            self.lm = LabelManager(y)
+            self.lm = LabelManager(y,reserved_classes=reserved_classes)
             self.y = y
 #         self.clf = clf
-        self.n_reserve = n_reserve
-        self.n_class = self.lm.n_class+self.n_reserve
+#         self.n_reserve = n_reserve
+        self.n_class = self.lm.n_class#+self.n_reserve
 #         clf.layers[-1].output_shape[-1]
 #         self.drt = drt
 
         self.clf,self.drt = build_model_2dconv(self.shape[1:],self.n_class,n_latent = 64)
 
-        if interest is None:
-            self.interest = self.n_class-1
-        else:
-            self.interest = self.lm.l2y[interest]
+#         if interest is None:
+#             self.interest = self.n_class-1
+#         else:
+#             self.interest = self.lm.l2y[interest]
+        self.set_interest(interest)
         self.aug = aug
         self.asked_q = []
-        
+        self.nqs = {}
         self.maxlimq = 100
 
+    def set_interest(self,interest):
+        if interest is None:
+            if 'r1' in self.lm.l2y.keys():
+                self.interest = {self.lm.l2y['r1']:1}
+            else:
+                print('Interest is not set while you did not set any reserved class. {} class is assumed as interest.'.format(self.lm.y2l[0]))
+                self.interest = {0:1}
+        elif type(interest) is int or type(interest) is str:
+            assert interest in self.lm.l2y.keys(), 'Requested lable is not in {}'.format(self.lm.l2y.keys())
+            self.interest = {self.lm.l2y[interest]:1}
+        else:
+            assert type(interest) is dict, 'interest is not dictionary. Example {"class1":0.1,"class2":0.9}'
+            self.interest = {self.lm.l2y[i]:w for i,w in interest.items()}
+
+    def get_interest(self):
+        return {self.lm.y2l[i]:w for i,w in self.interest.items()}
+            
     def fit(self,
             x=None,
             y=None,
@@ -80,15 +98,18 @@ class AHunt:
 #         print(x.shape,y.shape)
 
         if self.lm.update(y):
-            self.n_class = self.lm.n_class+self.n_reserve
+            self.n_class = self.lm.n_class#+self.n_reserve
             self.clf = add_class(self.clf,self.drt,n_class = self.n_class,summary=0)
 
-        yy = self.lm.to_y(y,onehot=1)
-        xx,yy = balance_aug(x,yy,self.aug,reshape=reshape)
-#         yy = to_categorical(yy, num_classes=self.n_class)
-        yy = np.concatenate([yy,np.zeros((yy.shape[0],self.n_reserve))],axis=1)
+#         yy = self.lm.to_y(y,onehot=1)
+#         xx,yy = balance_aug(x,yy,self.aug,reshape=reshape)
+# #         yy = to_categorical(yy, num_classes=self.n_class)
+#         yy = np.concatenate([yy,np.zeros((yy.shape[0],self.n_reserve))],axis=1)
+        def tocater(y):
+            return self.lm.to_y(y,onehot=1)
+        xx,yy = balance_aug(x,y,self.aug,reshape=reshape,tocater=tocater)
   
-        if ivc:
+        if ivc==0:
             history = self.clf.fit(self.aug.flow(xx, yy, batch_size=batch_size),
                                    steps_per_epoch=len(xx) // batch_size,
                                    epochs=epochs,
@@ -102,7 +123,8 @@ class AHunt:
             return history.history
         else:
             dc = DataContainer(xx, yy)
-            xc, yc = dc.process(clf)
+            xc, yc = dc.process(self.clf)
+            histories = []
             for i in range(epochs):
                 history = self.clf.fit(self.aug.flow(xx, yy, batch_size=batch_size),
                                        steps_per_epoch=len(xx) // batch_size,
@@ -115,6 +137,7 @@ class AHunt:
 #                                        verbose=verbose
 
                 xc, yc = dc.process(self.clf,c=ivc)
+                histories.append(history)
                 
             if 'val_accuracy' in history.history.keys():
                 hist = {'accuracy':[history.history['accuracy'] for history in histories],
@@ -123,69 +146,129 @@ class AHunt:
                 hist = {'accuracy':[history.history['accuracy'] for history in histories]}
             return hist
 
-    def ask_human(self,x,y,n_questions,minacc=0.0):
-#         if self.lm.update(y):
-#             print('model update in ask human!')
-#             self.n_class = self.lm.n_class+1
-#             self.clf = add_class(self.clf,self.drt,n_class = self.n_class,summary=1)
+#     def ask_human(self,x,y,n_questions,minacc=0.0):
+# #         if self.lm.update(y):
+# #             print('model update in ask human!')
+# #             self.n_class = self.lm.n_class+1
+# #             self.clf = add_class(self.clf,self.drt,n_class = self.n_class,summary=1)
         
         
     
-#         print('CHECK')
-#         describe_labels(yy,verbose=1)
-# #         self.clf.summary()
+# #         print('CHECK')
+# #         describe_labels(yy,verbose=1)
+# # #         self.clf.summary()
         
-#         print(self.lm.n_class,self.n_class,np.unique(yy),self.interest)
-#         print('END CHECK')
-        if check_int(n_questions):
-            yy = self.lm.to_y(y,onehot=0,add_new=1)
-            out_obs = yy==self.interest
-            ano_inds = np.argwhere(out_obs)[:,0]
-            z_clf = self.clf.predict(x)
-            scr_ano = z_clf[:,self.interest]
-            qlist = np.argsort(scr_ano)[::-1]
-            inds_all = []
-            inds_interest = []
-            for q in qlist:
-                mn = 10000
-                for asked in self.asked_q:
-                    dist = np.sum( (x[q]-asked)**2 )
-                    mn = min(mn,dist)
-                if mn>minacc:
-                    inds_all.append(q)
-                    if q in ano_inds:
-                        inds_interest.append(q)
-                if len(inds_all)==n_questions: break
-            return inds_all,inds_interest
+# #         print(self.lm.n_class,self.n_class,np.unique(yy),self.interest)
+# #         print('END CHECK')
+#         if check_int(n_questions):
+#             yy = self.lm.to_y(y,onehot=0,add_new=1)
+#             out_obs = yy==self.interest
+#             ano_inds = np.argwhere(out_obs)[:,0]
+#             z_clf = self.clf.predict(x)
+#             scr_ano = z_clf[:,self.interest]
+#             qlist = np.argsort(scr_ano)[::-1]
+#             inds_all = []
+#             inds_interest = []
+#             for q in qlist:
+#                 mn = 10000
+#                 for asked in self.asked_q:
+#                     dist = np.sum( (x[q]-asked)**2 )
+#                     mn = min(mn,dist)
+#                 if mn>minacc:
+#                     inds_all.append(q)
+#                     if q in ano_inds:
+#                         inds_interest.append(q)
+#                 if len(inds_all)==n_questions: break
+#             return inds_all,inds_interest
 
-        elif check_float(n_questions) and n_questions<1:
-            yy = self.lm.to_y(y,onehot=0,add_new=1)
-            out_obs = yy==self.interest
-            ano_inds = np.argwhere(out_obs)[:,0]
-            z_clf = self.clf.predict(x)
-            scr_ano = z_clf[:,self.interest]
-            qlist = np.argsort(scr_ano)[::-1]
-            inds_all = []
-            inds_interest = []
-            for q in qlist:
-                mn = 10000
-                for asked in self.asked_q:
-                    dist = np.sum( (x[q]-asked)**2 )
-                    mn = min(mn,dist)
-                if mn>minacc:
-                    inds_all.append(q)
-                    if q in ano_inds:
-                        inds_interest.append(q)
-#                 print(scr_ano[q],  n_questions)
-                if scr_ano[q] <  n_questions or self.maxlimq<len(inds_all) : break
+#         elif check_float(n_questions) and n_questions<1:
+#             yy = self.lm.to_y(y,onehot=0,add_new=1)
+#             out_obs = yy==self.interest
+#             ano_inds = np.argwhere(out_obs)[:,0]
+#             z_clf = self.clf.predict(x)
+#             scr_ano = z_clf[:,self.interest]
+#             qlist = np.argsort(scr_ano)[::-1]
+#             inds_all = []
+#             inds_interest = []
+#             for q in qlist:
+#                 mn = 10000
+#                 for asked in self.asked_q:
+#                     dist = np.sum( (x[q]-asked)**2 )
+#                     mn = min(mn,dist)
+#                 if mn>minacc:
+#                     inds_all.append(q)
+#                     if q in ano_inds:
+#                         inds_interest.append(q)
+# #                 print(scr_ano[q],  n_questions)
+#                 if scr_ano[q] <  n_questions or self.maxlimq<len(inds_all) : break
             
-#             print('Number of questions is {}.'.format(len(inds_all)))
-            return inds_all,inds_interest
+# #             print('Number of questions is {}.'.format(len(inds_all)))
+#             return inds_all,inds_interest
 
-        else:
-            assert 0,'Unknown number of questions.'
+#         else:
+#             assert 0,'Unknown number of questions.'
 
+    def ask_human(self,x,y,n_questions,minacc=0.0):
+        yy = self.lm.to_y(y,onehot=0,add_new=1)
+        norm = np.sum(list(self.interest.values()))
+        inds_all = []
+        inds_interest = []
+        self.nqs = {}
         
+        
+        suggestions = []
+        
+        missed_q = False
+        for intrst,w in self.interest.items():
+            if intrst>=self.n_class:
+                print('interest {} is out of number of class {}'.format(intrst,self.n_class))
+                missed_q = True
+                continue
+            nqs = np.round(n_questions*w/norm).astype(int)
+            nqs = max(nqs,1)
+            self.nqs[intrst] = nqs
+            out_obs = yy==intrst
+            ano_inds = np.argwhere(out_obs)[:,0]
+            z_clf = self.clf.predict(x)
+            scr_ano = z_clf[:,intrst]
+            qlist = np.argsort(scr_ano)[::-1]
+
+            count = 0
+            for q in qlist:
+                mn = 10000
+                for asked in self.asked_q:
+                    dist = np.sum( (x[q]-asked)**2 )
+                    mn = min(mn,dist)
+                if mn>minacc:
+                    
+#                     suggestions.append(yy[q])
+                    
+                    inds_all.append(q)
+                    count = count+1
+#                     if q in ano_inds:
+#                         inds_interest.append(q)
+                if count==nqs: break
+
+#         assert n_questions==len(inds_all) or missed_q, 'problem in the numer of questions {} and {}'.format(n_questions,len(inds_all))
+#         if n_questions==len(inds_all) or missed_q:
+#             pass
+#         else:
+#             print('Warning! Problem in the numer of questions. You have chose {} but {} is asked.'.format(n_questions,len(inds_all)))
+        inds_all = np.array(inds_all)
+#         inds_interest = np.array(inds_interest)
+#         print('==========')
+#         print(inds_all,inds_interest)
+#         print(suggestions)
+        suggestions = yy[inds_all]
+#         print(suggestions,.sum())
+#         if len(inds_interest)!=0:
+#             print(yy[inds_interest])
+#         print('==========')
+        
+        
+        filt = np.isin(suggestions,list(self.interest.keys()))
+        
+        return inds_all,inds_all[filt]
 
     
 #     def human_call1(self,x,y,n_questions,minacc=0.0):
@@ -207,7 +290,7 @@ class AHunt:
 #         qinds = np.argsort(scr_ano)[-n_questions:]
 #         inds = np.intersect1d(qinds,ano_inds)
         inds_all,inds_interest = self.ask_human(x,y,n_questions,minacc=minacc)
-        true_guess = len(inds_interest)
+
         self.asked_q.extend(x[inds_all])
         if self.rmove0:
             self.x = x[inds_all]
@@ -218,12 +301,17 @@ class AHunt:
         self.n_data = self.x.shape[0]
         
         self.inds_all,self.inds_interest = inds_all,inds_interest
+        true_guess = len(inds_interest)
+#         print(len(inds_all),true_guess)
         return true_guess
 
     def predict(self,x,interest=None):
-        if interest is None: interest = self.interest
+        if interest is None:
+            intrst = list(self.interest.keys())[0] #self.interest
+        else:
+            intrst = self.lm.l2y[interest]
         z_clf = self.clf.predict(x)
-        return z_clf[:,interest]
+        return z_clf[:,intrst]
     
     def class_predict(self,x):
         return self.clf.predict(x)
@@ -233,9 +321,10 @@ class AHunt:
         return z_mu
 
 class LabelManager():
-    def __init__(self,labels):
-        labelsp = np.array(labels).astype(np.int).astype(np.str)
+    def __init__(self,labels,reserved_classes=[]):
+        labelsp = np.array(labels).astype(np.int).astype(str)
         assert labelsp.ndim==1,'the label array has to be 1D.' 
+        labelsp = np.concatenate([reserved_classes,labelsp])
         self.yints = np.unique(labelsp)
         self.l2y = {j:i for i,j in enumerate(self.yints)}
         self.y2l = {i:j for i,j in enumerate(self.yints)}
@@ -253,7 +342,7 @@ class LabelManager():
         
     def to_y(self,labels,onehot=False,add_new=False):
         y = []
-        for i in np.array(labels).astype(np.int).astype(np.str):
+        for i in np.array(labels).astype(np.int).astype(str):
             if add_new:
                 if i in self.l2y.keys():
                     y.append(self.l2y[i])
@@ -264,14 +353,19 @@ class LabelManager():
         y = np.array(y)
         
         if onehot:
-            return to_categorical(y)
+            yc = np.zeros((y.shape[0],self.n_class))
+            for i in range(self.n_class):
+                filt = y==i
+                yc[filt,i] = 1 
+            return yc
+#             return to_categorical(y)
         return y
 
     def __call__(self,labels,onehot=False,add_new=False):
         return self.to_y(labels,onehot=onehot,add_new=add_new)
     
     def update(self,labels):
-        yints = np.unique(labels).astype(np.int).astype(np.str)
+        yints = np.unique(labels).astype(np.int).astype(str)
         dff = np.setdiff1d(yints,self.yints)
         if len(dff)==0:
 #             print('No change!')
@@ -284,6 +378,61 @@ class LabelManager():
         self.yints = np.union1d(self.yints,dff)
         self.n_class = len(self.yints)
         return True
+
+
+
+# class LabelManager():
+#     def __init__(self,labels):
+#         labelsp = np.array(labels).astype(np.int).astype(str)
+#         assert labelsp.ndim==1,'the label array has to be 1D.' 
+#         self.yints = np.unique(labelsp)
+#         self.l2y = {j:i for i,j in enumerate(self.yints)}
+#         self.y2l = {i:j for i,j in enumerate(self.yints)}
+#         self.n_class = len(self.yints)
+                        
+#     def to_labels(self,y):
+#         yp = np.array(y)
+#         if yp.ndim==2:
+#             yp = np.argmax(yp,axis=1)
+#         labels = []
+#         for i in yp:
+#             labels.append(self.y2l[i])
+#         labels = np.array(labels)
+#         return labels
+        
+#     def to_y(self,labels,onehot=False,add_new=False):
+#         y = []
+#         for i in np.array(labels).astype(np.int).astype(str):
+#             if add_new:
+#                 if i in self.l2y.keys():
+#                     y.append(self.l2y[i])
+#                 else:
+#                     y.append(self.n_class)
+#             else:
+#                 y.append(self.l2y[i])
+#         y = np.array(y)
+        
+#         if onehot:
+#             return to_categorical(y)
+#         return y
+
+#     def __call__(self,labels,onehot=False,add_new=False):
+#         return self.to_y(labels,onehot=onehot,add_new=add_new)
+    
+#     def update(self,labels):
+#         yints = np.unique(labels).astype(np.int).astype(str)
+#         dff = np.setdiff1d(yints,self.yints)
+#         if len(dff)==0:
+# #             print('No change!')
+#             return False
+#         l2y = {j:i+self.n_class for i,j in enumerate(dff)}
+#         y2l = {i+self.n_class:j for i,j in enumerate(dff)}
+        
+#         self.l2y = {**self.l2y, **l2y}
+#         self.y2l = {**self.y2l, **y2l}
+#         self.yints = np.union1d(self.yints,dff)
+#         self.n_class = len(self.yints)
+#         return True
 
 
 class DataContainer:
