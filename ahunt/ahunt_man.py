@@ -288,12 +288,12 @@ class AHunt:
 #         self.y = np.concatenate([y[inds_interest],self.y],axis=0)
 #         return true_guess
 
-    def human_call(self,x,y,n_questions,minacc=0.0):
+    def human_call(self,x,y,n_questions,predictor=None,minacc=0.0):
 #         ano_inds = np.argwhere(out2)[:,0]
 #         scr_ano = self.predict(x)
 #         qinds = np.argsort(scr_ano)[-n_questions:]
 #         inds = np.intersect1d(qinds,ano_inds)
-        inds_all,inds_interest = self.ask_human(x,y,n_questions,minacc=minacc)
+        inds_all,inds_interest = self.ask_human(x,y,n_questions,predictor=predictor,minacc=minacc)
 
         self.asked_q.extend(x[inds_all])
         if self.rmove0:
