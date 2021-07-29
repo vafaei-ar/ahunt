@@ -208,13 +208,12 @@ class AHunt:
 #         else:
 #             assert 0,'Unknown number of questions.'
 
-    def ask_human(self,x,y,n_questions,minacc=0.0):
+    def ask_human(self,x,y,n_questions,predictor=None,minacc=0.0):
         yy = self.lm.to_y(y,onehot=0,add_new=1)
         norm = np.sum(list(self.interest.values()))
         inds_all = []
         inds_interest = []
         self.nqs = {}
-        
         
         suggestions = []
         
@@ -229,8 +228,13 @@ class AHunt:
             self.nqs[intrst] = nqs
             out_obs = yy==intrst
             ano_inds = np.argwhere(out_obs)[:,0]
-            z_clf = self.clf.predict(x)
-            scr_ano = z_clf[:,intrst]
+            
+            if predictor is None:
+                z_clf = self.clf.predict(x)
+                scr_ano = z_clf[:,intrst]
+            else:
+                scr_ano = predictor(x)
+            
             qlist = np.argsort(scr_ano)[::-1]
 
             count = 0
