@@ -127,8 +127,8 @@ class AHunt:
             xc, yc = dc.process(self.clf,c=ivc,wmax=wmax)
             histories = []
             for i in range(epochs):
-                history = self.clf.fit(self.aug.flow(xx, yy, batch_size=batch_size),
-                                       steps_per_epoch=len(xx) // batch_size,
+                history = self.clf.fit(self.aug.flow(xc, yc, batch_size=batch_size),
+                                       steps_per_epoch=len(xc) // batch_size,
                                        epochs=1,
                                        verbose=verbose)
 #                 history = self.clf.fit(xc, yc,
@@ -139,6 +139,7 @@ class AHunt:
 
                 xc, yc = dc.process(self.clf,c=ivc,wmax=wmax)
                 histories.append(history)
+            del dc,xx,yy
                 
             if 'val_accuracy' in history.history.keys():
                 hist = {'accuracy':[history.history['accuracy'] for history in histories],
