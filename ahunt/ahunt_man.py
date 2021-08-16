@@ -441,7 +441,7 @@ class LabelManager():
 
 
 class DataContainer:
-    def __init__(self,x,y,wmax):
+    def __init__(self,x,y):
         self.x = x
         self.y = y
         self.ndata = x.shape[0]
