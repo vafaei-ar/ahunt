@@ -89,7 +89,8 @@ class AHunt:
             validation_split=0.1,
             verbose=0,
             reshape=None,
-            ivc=5 # intra-variability coefficient
+            ivc=5, # intra-variability coefficient
+            wmax=2 # IVC w_max
            ):
         if x is None or y is None:
             x = self.x
@@ -123,7 +124,7 @@ class AHunt:
             return history.history
         else:
             dc = DataContainer(xx, yy)
-            xc, yc = dc.process(self.clf)
+            xc, yc = dc.process(self.clf,c=ivc,wmax=wmax)
             histories = []
             for i in range(epochs):
                 history = self.clf.fit(self.aug.flow(xx, yy, batch_size=batch_size),
@@ -136,7 +137,7 @@ class AHunt:
 #                                        validation_split=validation_split,
 #                                        verbose=verbose
 
-                xc, yc = dc.process(self.clf,c=ivc)
+                xc, yc = dc.process(self.clf,c=ivc,wmax=wmax)
                 histories.append(history)
                 
             if 'val_accuracy' in history.history.keys():
@@ -440,17 +441,18 @@ class LabelManager():
 
 
 class DataContainer:
-    def __init__(self,x,y):
+    def __init__(self,x,y,wmax):
         self.x = x
         self.y = y
         self.ndata = x.shape[0]
         self.weight = []
         
-    def process(self,model,c=1):
+    def process(self,model,c=1,wmax=None):
         y_pred = model.predict(self.x)
         delta = np.sum((self.y-y_pred)**2,axis=1)
         weight = c*(delta+1)
         weight = weight/np.min(weight)
+        if not wmax is None: weight[weight>wmax] = wmax
 #         weight = weight-np.min(weight)+1
         weight = weight.astype(int)
         self.weight.append(weight)
