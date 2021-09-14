@@ -272,9 +272,15 @@ class AHunt:
 #         print('==========')
         
         
-        filt = np.isin(suggestions,list(self.interest.keys()))
+        filt_tot = np.isin(suggestions,list(self.interest.keys()))
         
-        return inds_all,inds_all[filt]
+        filts = []
+        for interest in list(self.interest.keys()):
+            filt = suggestions==interest
+            filts.append(filt)
+        self.tg_detaills = filts
+        
+        return inds_all,inds_all[filt_tot]
 
     
 #     def human_call1(self,x,y,n_questions,minacc=0.0):
