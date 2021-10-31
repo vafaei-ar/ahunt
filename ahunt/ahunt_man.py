@@ -239,7 +239,7 @@ class AHunt:
                     scr_ano = predictor(x)
                 qlist = np.argsort(scr_ano)[::-1]
             elif q_score=='from_lowest':
-                assert not predictor is None, 'Error! You can not set the predictor while you selected q_score="from_lowest".'
+                assert predictor is None, 'Error! You can not set the predictor while you selected q_score="from_lowest".'
 
                 z_clf = self.clf.predict(x)
                 z_clf = z_clf[:,intrst]
