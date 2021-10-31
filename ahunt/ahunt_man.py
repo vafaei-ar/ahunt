@@ -210,7 +210,7 @@ class AHunt:
 #         else:
 #             assert 0,'Unknown number of questions.'
 
-    def ask_human(self,x,y,n_questions,predictor=None,minacc=0.0):
+    def ask_human(self,x,y,n_questions,q_score=='from_highest',predictor=None,minacc=0.0):
         yy = self.lm.to_y(y,onehot=0,add_new=1)
         norm = np.sum(list(self.interest.values()))
         inds_all = []
@@ -231,14 +231,25 @@ class AHunt:
             out_obs = yy==intrst
             ano_inds = np.argwhere(out_obs)[:,0]
             
-            if predictor is None:
-                z_clf = self.clf.predict(x)
-                scr_ano = z_clf[:,intrst]
-            else:
-                scr_ano = predictor(x)
-            
-            qlist = np.argsort(scr_ano)[::-1]
+            if q_score=='from_highest':
+                if predictor is None:
+                    z_clf = self.clf.predict(x)
+                    scr_ano = z_clf[:,intrst]
+                else:
+                    scr_ano = predictor(x)
+                qlist = np.argsort(scr_ano)[::-1]
+            elif q_score=='from_lowest':
+                assert predictor!=None, 'Error! You can not set the predictor while you selected q_score="from_lowest".'
 
+                z_clf = self.clf.predict(x)
+                z_clf = z_clf[:,intrst]
+                z_clf[z_clf<0.5] = 0
+                scr_ano = 1-2*np.abs(z_clf-0.5)
+                qlist = np.argsort(scr_ano)[::-1]
+                
+            else:
+                assert 0,'Error in the q_score definition! Available choices are "from_highest", "from_lowest".'
+                
             count = 0
             for q in qlist:
                 mn = 10000
