@@ -7,6 +7,12 @@ Active human in the loop anomaly detection
 
 ``pip install git+https://github.com/vafaei-ar/ahunt.git``
 
+or 
+
+``pip install git+https://github.com/vafaei-ar/ahunt.git --ignore-installed``
+
+if you want to update it.
+
 
 
 
