@@ -210,7 +210,7 @@ class AHunt:
 #         else:
 #             assert 0,'Unknown number of questions.'
 
-    def deactive_model(self):
+    def deactivate_feature_extractor(self):
         tlayers_index = []
         for i,lay in enumerate(self.clf.layers):
             if lay.count_params() !=0:
