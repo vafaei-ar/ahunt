@@ -210,6 +210,15 @@ class AHunt:
 #         else:
 #             assert 0,'Unknown number of questions.'
 
+    def deactive_model(self):
+        tlayers_index = []
+        for i,lay in enumerate(self.clf.layers):
+            if lay.count_params() !=0:
+                tlayers_index.append(i)
+        for i in tlayers_index[:-1]:
+            print('#{:3d} trainable layer is {:30s} and now it is freezed!'.format(i,self.clf.layers[i].name))
+            self.clf.layers[i].trainable=False
+
     def ask_human(self,x,y,n_questions,q_score='from_highest',predictor=None,minacc=0.0):
         yy = self.lm.to_y(y,onehot=0,add_new=1)
         norm = np.sum(list(self.interest.values()))
