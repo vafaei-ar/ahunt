@@ -255,7 +255,9 @@ class AHunt:
                 z_clf[z_clf<0.5] = 0
                 scr_ano = 1-2*np.abs(z_clf-0.5)
                 qlist = np.argsort(scr_ano)[::-1]
-                
+            elif q_score=='random':
+                scr_ano = np.random.normal(0,1,x.shape[0])
+                qlist = np.argsort(scr_ano)[::-1]
             else:
                 assert 0,'Error in the q_score definition! Available choices are "from_highest", "from_lowest".'
                 
